@@ -75,7 +75,86 @@ for (int i = 0; i < 10; i++) {
 pool.shutdown();
 ```
 
+## Примеры использования Schedulers
+
+```java
+import scheduler.IOThreadScheduler;
+import scheduler.ComputationScheduler;
+import scheduler.SingleThreadScheduler;
+
+// Использование IOThreadScheduler для асинхронной обработки
+Observable.<Integer>create(obs -> {
+        obs.onNext(1); obs.onNext(2); obs.onComplete();
+    })
+    .subscribeOn(new IOThreadScheduler())
+    .observeOn(new ComputationScheduler())
+    .map(x -> x * 2)
+    .subscribe(new Observer<Integer>() {
+        @Override public void onSubscribe(core.Disposable d) { }
+        @Override public void onNext(Integer item) {
+            System.out.println("[Computation] " + item + " в потоке: " + Thread.currentThread().getName());
+        }
+        @Override public void onError(Throwable t) { t.printStackTrace(); }
+        @Override public void onComplete() { System.out.println("Завершено"); }
+    });
+```
+
+## Тестирование
+
+В проекте реализованы юнит-тесты для проверки всех ключевых компонентов:
+- Проверка операторов map, filter, flatMap
+- Проверка обработки ошибок (onError)
+- Проверка работы Schedulers в многопоточной среде
+- Проверка механизма отмены подписки (Disposable)
+
+Пример теста на flatMap:
+```java
+@Test
+public void flatMapTest() {
+    List<Integer> out = new ArrayList<>();
+    Observable.<Integer>create(obs -> {
+                obs.onNext(1); obs.onNext(2); obs.onComplete();
+            })
+            .flatMap(x -> Observable.create(obs -> {
+                obs.onNext(x * 10); obs.onNext(x * 100); obs.onComplete();
+            }))
+            .subscribe(new Observer<Integer>() {
+                @Override public void onSubscribe(core.Disposable d) { }
+                @Override public void onNext(Integer item) { out.add(item); }
+                @Override public void onError(Throwable t) { fail(String.valueOf(t)); }
+                @Override public void onComplete() { }
+            });
+    assertEquals(List.of(10, 100, 20, 200), out);
+}
+```
+
+Пример теста на работу Schedulers:
+```java
+@Test
+public void schedulerTest() throws InterruptedException {
+    List<String> threadNames = new ArrayList<>();
+    var scheduler = new IOThreadScheduler();
+    Observable.<Integer>create(obs -> {
+                obs.onNext(1); obs.onNext(2); obs.onComplete();
+            })
+            .subscribeOn(scheduler)
+            .observeOn(scheduler)
+            .subscribe(new Observer<Integer>() {
+                @Override public void onSubscribe(core.Disposable d) { }
+                @Override public void onNext(Integer item) { threadNames.add(Thread.currentThread().getName()); }
+                @Override public void onError(Throwable t) { fail(); }
+                @Override public void onComplete() { }
+            });
+    Thread.sleep(200);
+    scheduler.shutdown();
+    boolean notMain = threadNames.stream().anyMatch(name -> !name.contains("main"));
+    assertEquals(true, notMain);
+}
+```
+
 ## Требования
 
 - Java 11 или выше
 - Maven для сборки проекта
+
+Автор: Коваленко Иван
