@@ -155,6 +155,6 @@ public void schedulerTest() throws InterruptedException {
 ## Требования
 
 - Java 11 или выше
-- Maven для сборки проектая
+- Maven для сборки проекта
 
 Автор: Коваленко Иван
